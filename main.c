@@ -506,4 +506,6 @@ int main() {
         }
     }
     return 0;
+    /*sistema scala che da solo 500 e il primo dopo bigblind ha valori stack sballati.
+     * dopo ogni call perde 25 pezzi anche se fai check*/
 }
