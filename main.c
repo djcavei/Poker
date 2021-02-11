@@ -297,6 +297,13 @@ double point(int *fourteen_card_array, player_t *player, card_t *deck, int *arra
     }
 }
 
+void reset_in_out(player_t *player) {
+    int i;
+    for (i = 0; i < playernum; i++) {
+        player[i].in_out = 1;
+    }
+}
+
 void check_score(player_t *player, card_t *deck, int *array_index) {
     int i, j; /*bitwise?*/
     int fourteen_card_array[14];
@@ -325,14 +332,48 @@ void check_score(player_t *player, card_t *deck, int *array_index) {
     }
 }
 
+void victory_lies_ahead(player_t *player, match_t *game) {
+    int i, i_win = 0;
+    double max = 0;
+    for (i = 0; i < playernum; i++) {
+        if (player[i].in_out == 1) {
+            if (player[i].win >= max) {
+                max = player[i].win;
+                i_win = i;
+            }
+        }
+    }
+    player[i_win].stack += game->pot;
+}
+
 void blind(player_t *player, match_t *game) {
     player[(dealer_index + 1) % playernum].stack -= small_blind; /*TODO AVRAI PROBLEMI QUANDO ELIMINI UN GIOCATORE PERCHè COME UPDATI IL TURNO?*/
-    player[(dealer_index + 1) % playernum].last_bet += small_blind;
+    player[(dealer_index + 1) % playernum].last_bet = small_blind;
     player[(dealer_index + 2) % playernum].stack -= big_blind;
-    player[(dealer_index + 2) % playernum].last_bet += big_blind;
-    game->pot += small_blind+big_blind;
+    player[(dealer_index + 2) % playernum].last_bet = big_blind;
+    game->pot += (small_blind+big_blind);
     game->current_target = big_blind;
     turn = (dealer_index + 3) % playernum;
+    printf("\nPOT: %d", game->pot);
+}
+
+void clear_all(player_t *player, match_t *game) {
+    int i;
+    for (i = 0; i < playernum; i++) {
+        player[i].win = 0;
+        player[i].in_out = 1;
+        player[i].last_bet = 0;
+        game->current_target = 0;
+        game->pot = 0;
+    }
+}
+
+void card_print(player_t *player) {
+    int i;
+    printf("\n");
+    for (i = 0; i < 2; i++) {
+        printf("%d%c ", player[turn].cards[i].valore, player[turn].cards[i].seme);
+    }
 }
 
 int place_bet(player_t *player, match_t *game) {
@@ -342,8 +383,9 @@ int place_bet(player_t *player, match_t *game) {
     scanf("\n%d", &bet);
     getchar();
     if (bet == 2 || bet == 3 || bet == 5) {
-        player[turn].stack -= game->current_target * bet;
-        game->pot += game->current_target * bet;
+        player[turn].stack -= (game->current_target * bet) - player[turn].last_bet;
+        player[turn].last_bet = (game->current_target * bet) - player[turn].last_bet;
+        game->pot += (game->current_target * bet) - player[turn].last_bet;
         game->current_target = game->current_target * bet;
         return 1;
     }
@@ -352,12 +394,13 @@ int place_bet(player_t *player, match_t *game) {
 
 int evaluate_option(int option, player_t *player, match_t *game) {
     switch (option) {
-        case 1: {
+        case 1: { /*RAISE BET*/
             return place_bet(player, game);
         }
-        case 2: {
-            player[turn].stack -= game->current_target; /* se c'è un current target allora scalerai di quello per la call altirmenti il curr tar sara a 0 e quindi checkerai e basta */
-            game->pot += game->current_target;
+        case 2: { /*CALL CHECK*/
+            player[turn].stack -= game->current_target - player[turn].last_bet; /* se c'è un current target allora scalerai di quello per la call altirmenti il curr tar sara a 0 e quindi checkerai e basta */
+            player[turn].last_bet = game->current_target - player[turn].last_bet;
+            game->pot += player[turn].last_bet;
             return 1;
         }
         case 3: {
@@ -386,25 +429,74 @@ int main() {
     state_of_hand = 0;
     option = 0;
     small_blind = 25;
-    big_blind = 2*big_blind;
+    big_blind = 2*small_blind;
     /*for (i = 0; i < TOTAL_CARDS; i++) {
         printf("\n%d %c", deck[i].valore, deck[i].seme);
     }*/
+    for (i = 0; i < playernum; i++) {
+        printf("\nInserisci nome player %d: ", i + 1);
+        scanf("%s", player[i].name);
+        getchar();
+    }
     while(1) {
-        player[dealer_index % playernum].dealer = 1; /*serve davvero?*/
         hand_initialize(deck, player, array); /*TODO PENSARE A COME CAPIRE CHE TUTTI HANNO BETTATO E PASSARE AL FLOP*/
         blind(player, game);
-        while (state_of_hand == 0 && talkers) {
-            printf("\nTURNO GIOCATORE %d %s: 1.BET/RAISE 2.CHECK/CALL 3.FOLD", player[turn].player, player[turn].name); /* da sostituire con il nome del player*/
-            scanf("\n%d", &option);
+        while (state_of_hand <= 5) {
+            if (player[turn].in_out == 0) {
+                turn_update();
+                continue;
+            }
+            printf("\nTURNO GIOCATORE %d %s: ", player[turn].player, player[turn].name); /* da sostituire con il nome del player*/
+            printf("\nStack: %d", player[turn].stack);
+            card_print(player);
+            printf("\n1.BET/RAISE 2.CHECK/CALL 3.FOLD"); /* da sostituire con il nome del player*/
+            printf("\ninserisci scelta: ");
+            scanf("%d", &option);
             getchar();
             if (evaluate_option(option, player, game)) {
                 turn_update();
                 talkers--;
+            } else continue;
+            if (!talkers) {
+                talkers = playernum;
+                if (state_of_hand == 0) {
+                    printf("\n FLOP: ");
+                    flop_print(deck, flop_index, 3);
+                } else if (state_of_hand == 3) {
+                    printf("\n TURN: ");
+                    flop_print(deck, flop_index, 3);
+                    turn_print(deck, turn_index);
+                }  else if (state_of_hand == 4) {
+                    printf("\n RIVER: ");
+                    flop_print(deck, flop_index, 3);
+                    turn_print(deck, turn_index);
+                    river_print(deck, river_index);
+                }
+                else {
+                    check_score(player, deck, array);
+                    flop_print(deck, flop_index, 3);
+                    turn_print(deck, turn_index);
+                    river_print(deck, river_index);
+                    for (i = 0; i < playernum; i++) {
+                        if (player[i].in_out == 1) {
+                            printf("\nPUNTEGGIO %d%c, %d%c  score is: %.2f", player[i].cards[0].valore,
+                                   player[i].cards[0].seme,
+                                   player[i].cards[1].valore, player[i].cards[1].seme, player[i].win);
+                        }
+                    }
+                    victory_lies_ahead(player, game);
+                    clear_all(player, game);
+                    dealer_index++;
+                    break;
+                }
+                turn = (dealer_index + 1) % playernum;
+                reset_in_out(player);
             }
         }
         printf("\n FLOP: ");
         flop_print(deck, flop_index, 3);
+        talkers = playernum;
+        turn = dealer_index + 1;
         turn_print(deck, turn_index);
         river_print(deck, river_index);
         check_score(player, deck, array);
