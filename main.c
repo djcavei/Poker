@@ -100,6 +100,7 @@ player_t *player_cards_initialize(player_t *p) {
         x[i].stack = STACK;
         x[i].match = (match_t*)malloc(sizeof(match_t));
         x[i].in_out = 1;
+        x[i].last_bet = 0;
     }
     return x;
 }
@@ -235,8 +236,8 @@ double flush_check(int *fourteen_card_array, card_t *deck, player_t *player, int
     }
     if (flag) {
         free(temp_card);
-        /*printf("STRAIGHT  ");*/
-        return STRAIGHT + index;
+        printf("STRAIGHT  ");
+        return player[index].win;
     }
     free(temp_card);
     return player[index].win;
@@ -411,7 +412,15 @@ int evaluate_option(int option, player_t *player, match_t *game) {
     return 0;
 }
 
+void reset_last_bet(player_t *player) {
+    int i;
+    for (i = 0; i < playernum; i++){
+        player[i].last_bet = 0;
+    }
+}
+
 int main() {
+    setbuf(stdout, 0);
     srand(time(NULL));
     card_t *deck; /*ricorda free*/
     player_t *player; /*ricorda free*/
@@ -458,6 +467,8 @@ int main() {
                 talkers--;
             } else continue;
             if (!talkers) {
+                game->current_target = 0;
+                reset_last_bet(player);
                 talkers = playernum;
                 if (state_of_hand == 0) {
                     printf("\n FLOP: ");
@@ -486,14 +497,15 @@ int main() {
                     }
                     victory_lies_ahead(player, game);
                     clear_all(player, game);
-                    dealer_index++;
+                    dealer_index = (dealer_index + 1) % playernum;
+                    state_of_hand = 0;
                     break;
                 }
                 turn = (dealer_index + 1) % playernum;
                 reset_in_out(player);
             }
         }
-        printf("\n FLOP: ");
+        /*printf("\n FLOP: ");
         flop_print(deck, flop_index, 3);
         talkers = playernum;
         turn = dealer_index + 1;
@@ -503,7 +515,7 @@ int main() {
         for (i = 0; i < playernum; i++) {
             printf("\nPUNTEGGIO %d%c, %d%c  score is: %.2f", player[i].cards[0].valore, player[i].cards[0].seme,
                    player[i].cards[1].valore, player[i].cards[1].seme, player[i].win);
-        }
+        }*/
     }
     return 0;
     /*sistema scala che da solo 500 e il primo dopo bigblind ha valori stack sballati.
