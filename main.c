@@ -387,11 +387,16 @@ int place_bet(player_t *player, match_t *game) {
     if (game->current_target == 0) {
         game->current_target = small_blind;
     }
-    printf("\nPLACE YOUR BET: 2. %d, 3. %d, 5. %d", game->current_target * 2, game->current_target * 3, game->current_target * 5);
+    printf("\nPLACE YOUR BET: 2. %d, 3. %d, 5. %d, 0. Insert manually (at least %d)", game->current_target * 2, game->current_target * 3, game->current_target * 5, game->current_target * 2);
     scanf("\n%d", &bet);
     getchar();
-    if (bet == 2 || bet == 3 || bet == 5 /* || bet >= game->current_target * 2 */) {
-        player[turn].stack = player[turn].stack - ((game->current_target * bet) - player[turn].last_bet);
+    if (bet == 2 || bet == 3 || bet == 5 || bet == 0) {
+        if (bet == 0) {
+            printf("Insert bet: ");
+            scanf("%d", &bet);
+        }
+        if (bet > game->current_target * 2) {game->current_target = 1;} else return 0;
+        player[turn].stack = player[turn].stack - ((game->current_target * bet) - player[turn].last_bet); /*TODO VERIFICA SE FUNZIONA*/
         game->pot = game->pot + ((game->current_target * bet) - player[turn].last_bet);
         player[turn].last_bet = (game->current_target * bet);
         game->current_target = game->current_target * bet;
