@@ -106,6 +106,34 @@ player_t *player_cards_initialize(player_t *p) {
     return x;
 }
 
+player_t *elimination(player_t *player) {
+    int i, size = playernum;
+    for (i = 0; i < playernum; i++) {
+        if (player[i].stack <= 0) {
+            --size;
+        }
+    }
+    if (size >= playernum) {
+        return player;
+    }
+    else {
+        int j;
+        player_t *new_player;
+        player_t temp_player[size];
+        j = 0;
+        new_player = (player_t*)malloc(size * sizeof(player_t));
+        for (i = 0; i < playernum; i++) {
+            if (player[i].stack > 0) {
+                new_player[j] = temp_player[j] = player[i];
+                ++j;
+            }
+        }
+        free(player);
+        playernum = size;
+        return new_player;
+    }
+}
+
 void turn_update() {
     turn = (turn + 1) % playernum;
 }
@@ -395,7 +423,9 @@ int place_bet(player_t *player, match_t *game) {
             printf("Insert bet: ");
             scanf("%d", &bet);
         }
-        if (bet > game->current_target * 2) {game->current_target = 1;} else return 0;
+        if (bet > game->current_target * 2) {
+            game->current_target = 1;
+        } else return 0;
         player[turn].stack = player[turn].stack - ((game->current_target * bet) - player[turn].last_bet); /*TODO VERIFICA SE FUNZIONA*/
         game->pot = game->pot + ((game->current_target * bet) - player[turn].last_bet);
         player[turn].last_bet = (game->current_target * bet);
@@ -530,12 +560,13 @@ int main() {
                     river_print(deck, river_index);
                     for (i = 0; i < playernum; i++) {
                         if (player[i].in_out == 1) {
-                            printf("\nPUNTEGGIO %d%c, %d%c  score is: %.5f", player[i].cards[0].valore,
+                            printf("\nPUNTEGGIO %d%c, %d%c  score is: %.5f", player[i].cards[0].valore, /*TODO METTI UN %S PER RETURNARE IL PUNTO IN LETTERE */
                                    player[i].cards[0].seme,
                                    player[i].cards[1].valore, player[i].cards[1].seme, player[i].win);
                         }
                     }
                     victory_lies_ahead(player, game);
+                    player = elimination(player);
                     clear_all(player, game);
                     reset_in_out(player);
                     dealer_index = (dealer_index + 1) % playernum;
