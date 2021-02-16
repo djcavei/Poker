@@ -345,14 +345,6 @@ double point(int *fourteen_card_array, player_t *player, card_t *deck, int *arra
     }
 }
 
-void reset_in_out(player_t *player) {
-    int i;
-    for (i = 0; i < playernum; i++) {
-        player[i].in_out = 1;
-        player[i].state = 1;
-    }
-}
-
 void check_score(player_t *player, card_t *deck, int *array_index) {
     int i, j; /*bitwise?*/
     int fourteen_card_array[14];
@@ -413,6 +405,9 @@ void clear_all(player_t *player, match_t *game) {
         player[i].win = 0;
         player[i].in_out = 1;
         player[i].last_bet = 0;
+        player[i].all_in_bet = 0;
+        player[i].side_pot = 0;
+        player[i].state = 1;
         game->current_target = 0;
         game->pot = 0;
     }
@@ -428,21 +423,24 @@ void card_print(player_t *player) {
 
 void is_there_necessity_for_side_pot(player_t *player, match_t *game) {
     int i;
+/*
     talkers_check(player);
+*/
     for (i = 0; i < playernum; i++) {
-        if (player[i].stack <= game->current_target && player[i].state != ALL_IN && player[i].in_out == 1) {
+        if (player[i].stack <= game->current_target - player[i].last_bet && player[i].state != ALL_IN && player[i].in_out == 1) {
             player[i].state = ALL_IN;
             player[i].side_pot = game->pot - (game->current_target - player[i].stack);
             player[i].how_many_times = playernum - 1; /*(playernum - talkers - 1);*/
             player[i].all_in_bet = player[i].stack;
         } else if (player[i].state == ALL_IN && player[i].how_many_times) {
-            if (player[i].side_pot) {
+            if (player[i].side_pot && player[(turn + (playernum - 1)) % playernum].in_out) {
                 if (player[(turn + (playernum - 1)) % playernum].last_bet >= player[i].all_in_bet) {
                     player[i].side_pot += player[i].all_in_bet;
                 } else player[i].side_pot += player[(turn + (playernum - 1)) % playernum].last_bet;
                 player[i].how_many_times--;
             }
         }
+        printf("\nsidepot %d, how many times %d, allinbet %d", player[i].side_pot, player[i].how_many_times, player[i].all_in_bet);
     }
 }
 
@@ -468,7 +466,9 @@ int place_bet(player_t *player, match_t *game) {
             } else return 0;
         }
         if (player[turn].stack <= (game->current_target * bet) - player[turn].last_bet) {
+/*
             return all_in_play(player, game, 1);
+*/
         }
         player[turn].stack = player[turn].stack - ((game->current_target * bet) - player[turn].last_bet);
         game->pot = game->pot + ((game->current_target * bet) - player[turn].last_bet);
@@ -555,14 +555,15 @@ int main() {
         scanf("%s", player[i].name);
         getchar();
     }
+    clear_all(player, game);
     while(1) {
         in_hand_player = playernum;
         hand_initialize(deck, player, array);
         blind(player, game); /*TODO PREVEDERE IL CASO DI ALL-IN AL BLIND*/
         while (state_of_hand <= 5) {
-            is_there_necessity_for_side_pot(player, game);
+            is_there_necessity_for_side_pot(player, game); /*SERVE FARLO SE SKIPPI IL PLAYER RITIRATO?*/
             print_check(player, game);
-            if (player[turn].in_out == 0 || player[turn].state == ALL_IN) {
+            if (player[turn].in_out == 0 || player[turn].stack <= 0) {
                 turn_update();
                 continue;
             }
@@ -618,7 +619,6 @@ int main() {
                     victory_lies_ahead(player, game);
                     player = elimination(player);
                     clear_all(player, game);
-                    reset_in_out(player);
                     dealer_index = (dealer_index + 1) % playernum;
                     state_of_hand = 0;
                     break;
