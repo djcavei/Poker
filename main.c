@@ -45,6 +45,7 @@ int dealer_index;
 int turn;
 int talkers;
 int in_hand_player;
+int side_pot_array;
 
 typedef struct match {
     int pot;
@@ -67,6 +68,8 @@ typedef struct player {
     int side_pot;
     int state; /*definisce se sta raisando? boh!*/
     int last_bet;
+    int how_many_times;
+    int all_in_bet;
 } player_t;
 
 match_t *game_create(match_t *g) {
@@ -102,6 +105,7 @@ player_t *player_cards_initialize(player_t *p) {
         x[i].in_out = 1;
         x[i].last_bet = 0;
         x[i].state = 1;
+        x[i].how_many_times = 0;
     }
     return x;
 }
@@ -422,13 +426,37 @@ void card_print(player_t *player) {
     }
 }
 
+void is_there_necessity_for_side_pot(player_t *player, match_t *game) {
+    int i;
+    talkers_check(player);
+    for (i = 0; i < playernum; i++) {
+        if (player[i].stack <= game->current_target && player[i].state != ALL_IN && player[i].in_out == 1) {
+            player[i].state = ALL_IN;
+            player[i].side_pot = game->pot - (game->current_target - player[i].stack);
+            player[i].how_many_times = playernum - 1; /*(playernum - talkers - 1);*/
+            player[i].all_in_bet = player[i].stack;
+        } else if (player[i].state == ALL_IN && player[i].how_many_times) {
+            if (player[i].side_pot) {
+                if (player[(turn + (playernum - 1)) % playernum].last_bet >= player[i].all_in_bet) {
+                    player[i].side_pot += player[i].all_in_bet;
+                } else player[i].side_pot += player[(turn + (playernum - 1)) % playernum].last_bet;
+                player[i].how_many_times--;
+            }
+        }
+    }
+}
+
+int all_in_play(player_t *player, match_t *game, int flag) {
+
+}
+
 int place_bet(player_t *player, match_t *game) {
     int bet;
     bet = 0;
     if (game->current_target == 0) {
         game->current_target = small_blind;
     }
-    printf("\nPLACE YOUR BET: 2. %d, 3. %d, 5. %d, 0. Insert manually (at least %d)", game->current_target * 2, game->current_target * 3, game->current_target * 5, game->current_target * 2);
+    printf("\nPLACE YOUR BET: 2. %d, 3. %d, 5. %d, 0. Insert manually (at least %d, max %d (ALL-IN): ", game->current_target * 2, game->current_target * 3, game->current_target * 5, game->current_target * 2, player[turn].stack);
     scanf("\n%d", &bet);
     getchar();
     if (bet == 2 || bet == 3 || bet == 5 || bet == 0) {
@@ -439,7 +467,10 @@ int place_bet(player_t *player, match_t *game) {
                 game->current_target = 1;
             } else return 0;
         }
-        player[turn].stack = player[turn].stack - ((game->current_target * bet) - player[turn].last_bet); /*TODO VERIFICA SE FUNZIONA*/
+        if (player[turn].stack <= (game->current_target * bet) - player[turn].last_bet) {
+            return all_in_play(player, game, 1);
+        }
+        player[turn].stack = player[turn].stack - ((game->current_target * bet) - player[turn].last_bet);
         game->pot = game->pot + ((game->current_target * bet) - player[turn].last_bet);
         player[turn].last_bet = (game->current_target * bet);
         game->current_target = game->current_target * bet;
@@ -467,12 +498,14 @@ int evaluate_option(int option, player_t *player, match_t *game) {
         }
         case 3: {
             player[turn].in_out = 0;
+            player[turn].last_bet = 0;
+            player[turn].state = 1;
             in_hand_player--;
             --talkers;
             return 1;
         }
+        default: return 0;
     }
-    return 0;
 }
 
 void reset_last_bet(player_t *player) {
@@ -524,12 +557,12 @@ int main() {
     }
     while(1) {
         in_hand_player = playernum;
-        hand_initialize(deck, player, array); /*TODO PENSARE A COME CAPIRE CHE TUTTI HANNO BETTATO E PASSARE AL FLOP*/
-        blind(player, game);
+        hand_initialize(deck, player, array);
+        blind(player, game); /*TODO PREVEDERE IL CASO DI ALL-IN AL BLIND*/
         while (state_of_hand <= 5) {
-            /*all_in_prevent(player, game); *//*QUESTA FUNZIONE SERVE A VEDERE SE QUALCUNO SARA' COSTRETTO ALL'ALL-IN*/
+            is_there_necessity_for_side_pot(player, game);
             print_check(player, game);
-            if (player[turn].in_out == 0) {
+            if (player[turn].in_out == 0 || player[turn].state == ALL_IN) {
                 turn_update();
                 continue;
             }
