@@ -28,6 +28,7 @@
 #define FULL_HOUSE 700
 #define POKER 800
 #define ROYAL_FLUSH 1000
+#define ALL_IN 2
 #define PRE_FLOP state_of_hand == 0
 #define RAISE 1
 #define CHECK 0
@@ -63,8 +64,7 @@ typedef struct player {
     double win;
     int in_out;
     char name[20];
-    int dealer;
-    match_t *match;
+    int side_pot;
     int state; /*definisce se sta raisando? boh!*/
     int last_bet;
 } player_t;
@@ -99,9 +99,9 @@ player_t *player_cards_initialize(player_t *p) {
         x[i].player = i + 1;
         x[i].cards = (card_t*)malloc(2 * sizeof(card_t));
         x[i].stack = STACK;
-        x[i].match = (match_t*)malloc(sizeof(match_t));
         x[i].in_out = 1;
         x[i].last_bet = 0;
+        x[i].state = 1;
     }
     return x;
 }
@@ -189,6 +189,16 @@ printf("%d%c, ", dek[arr[0]].valore, dek[arr[0]].seme);
 void river_print(card_t  *dek, const *arr) {
 state_of_hand = 5;
 printf("%d%c ", dek[arr[0]].valore, dek[arr[0]].seme);
+}
+
+void talkers_check(player_t *player) {
+    int i;
+    talkers = 0;
+    for (i = 0; i < playernum; i++) {
+        if (player[i].in_out == 1) {
+            ++talkers;
+        }
+    }
 }
 
 double flush_check(int *fourteen_card_array, card_t *deck, player_t *player, int index, int flag, int *array_index) {
@@ -297,10 +307,10 @@ double point(int *fourteen_card_array, player_t *player, card_t *deck, int *arra
         }
         if (fourteen_card_array[i] >= 1) {
             if (fourteen_card_array[i] == 1) {
-                kicker_5 = kicker_4 / 10;
-                kicker_4 = kicker_3 / 10;
-                kicker_3 = kicker_2 / 10;
-                kicker_2 = high_card / 10;
+                kicker_5 = kicker_4 / 10.00;
+                kicker_4 = kicker_3 / 10.00;
+                kicker_3 = kicker_2 / 10.00;
+                kicker_2 = high_card / 10.00;
                 high_card = (double)i/100 + 0.01;
             }
             count++;
@@ -335,6 +345,7 @@ void reset_in_out(player_t *player) {
     int i;
     for (i = 0; i < playernum; i++) {
         player[i].in_out = 1;
+        player[i].state = 1;
     }
 }
 
@@ -342,25 +353,27 @@ void check_score(player_t *player, card_t *deck, int *array_index) {
     int i, j; /*bitwise?*/
     int fourteen_card_array[14];
     for (i = 0; i < playernum; i++) {
-        for (j = 0; j < 14; j++) fourteen_card_array[j] = 0;
-        for (j = 0; j < state_of_hand; j++) {
-            fourteen_card_array[deck[array_index[((2 * playernum) + j)]].valore - 1] += 1;
-            if (deck[array_index[((2 * playernum) + j)]].valore == 1) {
-                fourteen_card_array[13] += 1;
+        if (player[i].in_out == 1) { /*MESSO PER NON CONTROLLARE VITTORIA DELL'ELIMINATO*/
+            for (j = 0; j < 14; j++) fourteen_card_array[j] = 0;
+            for (j = 0; j < state_of_hand; j++) {
+                fourteen_card_array[deck[array_index[((2 * playernum) + j)]].valore - 1] += 1;
+                if (deck[array_index[((2 * playernum) + j)]].valore == 1) {
+                    fourteen_card_array[13] += 1;
+                }
             }
-        }
-        for (j = 0; j < 2; j++) {
-            fourteen_card_array[(player[i].cards[j].valore) - 1] += 1;
-            if (player[i].cards[j].valore == 1) {
-                fourteen_card_array[13] += 1;
+            for (j = 0; j < 2; j++) {
+                fourteen_card_array[(player[i].cards[j].valore) - 1] += 1;
+                if (player[i].cards[j].valore == 1) {
+                    fourteen_card_array[13] += 1;
+                }
             }
-        }
-        player[i].win = point(fourteen_card_array, player, deck, array_index);
-        if (player[i].win < FULL_HOUSE) {
-            if (player[i].win >= STRAIGHT) {
-                player[i].win = flush_check(fourteen_card_array, deck, player, i, 1, array_index);
-            } else {
-                player[i].win = flush_check(fourteen_card_array, deck, player, i, 0, array_index);
+            player[i].win = point(fourteen_card_array, player, deck, array_index);
+            if (player[i].win < FULL_HOUSE) {
+                if (player[i].win >= STRAIGHT) {
+                    player[i].win = flush_check(fourteen_card_array, deck, player, i, 1, array_index);
+                } else {
+                    player[i].win = flush_check(fourteen_card_array, deck, player, i, 0, array_index);
+                }
             }
         }
     }
@@ -422,15 +435,16 @@ int place_bet(player_t *player, match_t *game) {
         if (bet == 0) {
             printf("Insert bet: ");
             scanf("%d", &bet);
+            if (bet > game->current_target * 2) {
+                game->current_target = 1;
+            } else return 0;
         }
-        if (bet > game->current_target * 2) {
-            game->current_target = 1;
-        } else return 0;
         player[turn].stack = player[turn].stack - ((game->current_target * bet) - player[turn].last_bet); /*TODO VERIFICA SE FUNZIONA*/
         game->pot = game->pot + ((game->current_target * bet) - player[turn].last_bet);
         player[turn].last_bet = (game->current_target * bet);
         game->current_target = game->current_target * bet;
-        talkers = playernum;
+        talkers_check(player);
+        --talkers;
         return 1;
     }
     if (game->current_target == small_blind) {
@@ -448,11 +462,13 @@ int evaluate_option(int option, player_t *player, match_t *game) {
             player[turn].stack -= (game->current_target - player[turn].last_bet); /* se c'è un current target allora scalerai di quello per la call altirmenti il curr tar sara a 0 e quindi checkerai e basta */
             game->pot += (game->current_target - player[turn].last_bet);
             player[turn].last_bet = game->current_target; /*INVERTITO CON GAMEPOT COME SU BET/RAISE */
+            --talkers;
             return 1;
         }
         case 3: {
             player[turn].in_out = 0;
             in_hand_player--;
+            --talkers;
             return 1;
         }
     }
@@ -470,6 +486,7 @@ void print_check(player_t *player, match_t *game) {
     int i;
     printf("\n");
     for (i = 0; i < playernum; i++) {
+        if (player[i].in_out == 1)
         printf("STACK PLAYER %d %s: %d ", player[i].player, player[i].name, player[i].stack);
     }
     printf("POT: %d ", game->pot);
@@ -510,13 +527,14 @@ int main() {
         hand_initialize(deck, player, array); /*TODO PENSARE A COME CAPIRE CHE TUTTI HANNO BETTATO E PASSARE AL FLOP*/
         blind(player, game);
         while (state_of_hand <= 5) {
+            /*all_in_prevent(player, game); *//*QUESTA FUNZIONE SERVE A VEDERE SE QUALCUNO SARA' COSTRETTO ALL'ALL-IN*/
             print_check(player, game);
             if (player[turn].in_out == 0) {
                 turn_update();
                 continue;
             }
             printf("\nPOT: %d", game->pot);
-            printf("\nTURNO GIOCATORE %d %s: ", player[turn].player, player[turn].name); /* da sostituire con il nome del player*/
+            printf("\n\nTURNO GIOCATORE %d %s: ", player[turn].player, player[turn].name);
             printf("\nStack: %d", player[turn].stack);
             printf("\n%d fiches PER CHIAMARE", game->current_target - player[turn].last_bet);
             card_print(player);
@@ -534,12 +552,11 @@ int main() {
             getchar();
             if (evaluate_option(option, player, game)) {
                 turn_update();
-                talkers--;
             } else continue;
             if (!talkers) {
                 game->current_target = 0;
                 reset_last_bet(player);
-                talkers = playernum;
+                talkers_check(player);
                 if (state_of_hand == 0) {
                     printf("\n FLOP: ");
                     flop_print(deck, flop_index, 3);
@@ -589,6 +606,4 @@ int main() {
         }*/
     }
     return 0;
-    /*sistema scala che da solo 500 e il primo dopo bigblind ha valori stack sballati.
-     * dopo ogni call perde 25 pezzi anche se fai check*/
 }
