@@ -610,6 +610,7 @@ int main() {
                     c = getch();
                     if (c == 'y' || c == 'Y') {
                         evaluate_option(9669, player, game);
+                        turn_update();
                     }
                     else {
                         evaluate_option(3, player, game);
