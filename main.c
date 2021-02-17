@@ -3,6 +3,7 @@
 #include <string.h>
 #include <math.h>
 #include <time.h>
+#include <conio.h>
 
 #define CUORI 'c'
 #define QUADRI 'q'
@@ -421,18 +422,25 @@ void card_print(player_t *player) {
     }
 }
 
-void is_there_necessity_for_side_pot(player_t *player, match_t *game) {
+void is_there_necessity_for_side_pot(player_t *player, match_t *game, int flag) {
     int i;
 /*
     talkers_check(player);
 */
     for (i = 0; i < playernum; i++) {
-        if (player[i].stack <= game->current_target - player[i].last_bet && player[i].state != ALL_IN && player[i].in_out == 1) {
+        if (player[i].stack <= game->current_target - player[i].last_bet && player[i].state == 1 && player[i].in_out == 1) {
             player[i].state = ALL_IN;
-            player[i].side_pot = game->pot - (game->current_target - player[i].stack);
             player[i].how_many_times = playernum - 1; /*(playernum - talkers - 1);*/
-            player[i].all_in_bet = player[i].stack;
-        } else if (player[i].state == ALL_IN && player[i].how_many_times) {
+            if (player[i].stack) {
+                player[i].all_in_bet = player[i].stack;
+                player[i].side_pot = game->pot - (game->current_target - player[i].stack);
+            }
+            else {
+                player[i].all_in_bet = player[i].last_bet;
+                player[i].side_pot = game->pot;
+                player[i].state = 3;
+            }
+        } else if ((player[i].state >= ALL_IN && player[i].how_many_times && flag == 0) || (flag == 3 && player[i].how_many_times && player[i].state == 3)) {
             if (player[i].side_pot && player[(turn + (playernum - 1)) % playernum].in_out) {
                 if (player[(turn + (playernum - 1)) % playernum].last_bet >= player[i].all_in_bet) {
                     player[i].side_pot += player[i].all_in_bet;
@@ -442,10 +450,6 @@ void is_there_necessity_for_side_pot(player_t *player, match_t *game) {
         }
         printf("\nsidepot %d, how many times %d, allinbet %d", player[i].side_pot, player[i].how_many_times, player[i].all_in_bet);
     }
-}
-
-int all_in_play(player_t *player, match_t *game, int flag) {
-
 }
 
 int place_bet(player_t *player, match_t *game) {
@@ -461,14 +465,19 @@ int place_bet(player_t *player, match_t *game) {
         if (bet == 0) {
             printf("Insert bet: ");
             scanf("%d", &bet);
-            if (bet > game->current_target * 2) {
+            if (bet >= game->current_target * 2) {
                 game->current_target = 1;
             } else return 0;
-        }
-        if (player[turn].stack <= (game->current_target * bet) - player[turn].last_bet) {
-/*
-            return all_in_play(player, game, 1);
-*/
+        }   /*CASO ALL-IN*/
+        if (player[turn].stack - ((game->current_target * bet) - player[turn].last_bet) <= 0 && bet >= 2) {
+            printf("\n\n\nIVI");
+            game->pot += player[turn].stack;
+            player[turn].last_bet = player[turn].stack;
+            game->current_target = player[turn].last_bet;
+            player[turn].stack = 0;
+            talkers_check(player);
+            --talkers;
+            return 1;
         }
         player[turn].stack = player[turn].stack - ((game->current_target * bet) - player[turn].last_bet);
         game->pot = game->pot + ((game->current_target * bet) - player[turn].last_bet);
@@ -501,6 +510,14 @@ int evaluate_option(int option, player_t *player, match_t *game) {
             player[turn].last_bet = 0;
             player[turn].state = 1;
             in_hand_player--;
+            --talkers;
+            return 1;
+        }
+        case 9669: {
+            game->pot += player[turn].stack;
+            player[turn].last_bet = player[turn].stack;
+            player[turn].stack = 0;
+            player[turn].state = 3;
             --talkers;
             return 1;
         }
@@ -561,7 +578,7 @@ int main() {
         hand_initialize(deck, player, array);
         blind(player, game); /*TODO PREVEDERE IL CASO DI ALL-IN AL BLIND*/
         while (state_of_hand <= 5) {
-            is_there_necessity_for_side_pot(player, game); /*SERVE FARLO SE SKIPPI IL PLAYER RITIRATO?*/
+            is_there_necessity_for_side_pot(player, game, 0); /*SERVE FARLO SE SKIPPI IL PLAYER RITIRATO?*/
             print_check(player, game);
             if (player[turn].in_out == 0 || player[turn].stack <= 0) {
                 turn_update();
@@ -580,14 +597,29 @@ int main() {
                 state_of_hand = 0;
                 break;
             }
-            printf("\n1.BET/RAISE 2.CHECK/CALL 3.FOLD"); /* da sostituire con il nome del player*/
-            printf("\ninserisci scelta: ");
+            printf("\n1.BET/RAISE 2.CHECK/CALL 3.FOLD");
+            printf("\nInsert choice: ");
             scanf("%d", &option);
             getchar();
-            if (evaluate_option(option, player, game)) {
+            if (player[turn].state == 1 && evaluate_option(option, player, game)) {
                 turn_update();
-            } else continue;
+            } else if (player[turn].state == ALL_IN) {
+                char c = 'x';
+                printf("\nAll-in to call: Y/N ");
+                while(!kbhit()) {
+                    c = getch();
+                    if (c == 'y' || c == 'Y') {
+                        evaluate_option(9669, player, game);
+                    }
+                    else {
+                        evaluate_option(3, player, game);
+                        turn_update();
+                    }
+                }
+            }
+            else continue;
             if (!talkers) {
+                is_there_necessity_for_side_pot(player, game, 3);
                 game->current_target = 0;
                 reset_last_bet(player);
                 talkers_check(player);
