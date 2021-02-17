@@ -580,7 +580,7 @@ int main() {
         while (state_of_hand <= 5) {
             is_there_necessity_for_side_pot(player, game, 0); /*SERVE FARLO SE SKIPPI IL PLAYER RITIRATO?*/
             print_check(player, game);
-            if (player[turn].in_out == 0 || player[turn].stack <= 0) {
+            if (player[turn].in_out == 0 || (player[turn].stack <= 0) && talkers) {
                 turn_update();
                 continue;
             }
@@ -597,28 +597,29 @@ int main() {
                 state_of_hand = 0;
                 break;
             }
-            printf("\n1.BET/RAISE 2.CHECK/CALL 3.FOLD");
-            printf("\nInsert choice: ");
-            scanf("%d", &option);
-            getchar();
-            if (player[turn].state == 1 && evaluate_option(option, player, game)) {
-                turn_update();
-            } else if (player[turn].state == ALL_IN) {
-                char c = 'x';
-                printf("\nAll-in to call: Y/N ");
-                while(!kbhit()) {
-                    c = getch();
-                    if (c == 'y' || c == 'Y') {
-                        evaluate_option(9669, player, game);
-                        turn_update();
+            if (player[turn].stack > 0) {
+                printf("\n1.BET/RAISE 2.CHECK/CALL 3.FOLD");
+                printf("\nInsert choice: ");
+                scanf("%d", &option);
+                getchar();
+                if (player[turn].state == 1 && evaluate_option(option, player, game) ||
+                    (player[turn].state == ALL_IN && option == 3)) {
+                    turn_update();
+                } else if (player[turn].state == ALL_IN) {
+                    char c = 'x';
+                    printf("\nAll-in to call: Y/N ");
+                    while (!kbhit()) {
+                        c = getch();
+                        if (c == 'y' || c == 'Y') {
+                            evaluate_option(9669, player, game);
+                            turn_update();
+                        } else {
+                            evaluate_option(3, player, game);
+                            turn_update();
+                        }
                     }
-                    else {
-                        evaluate_option(3, player, game);
-                        turn_update();
-                    }
-                }
+                } else continue;
             }
-            else continue;
             if (!talkers) {
                 is_there_necessity_for_side_pot(player, game, 3);
                 game->current_target = 0;
