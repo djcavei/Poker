@@ -54,8 +54,6 @@ typedef struct player {
     int last_bet;
     int state;
     int my_own_bets;
-    int how_many_times;
-    int all_in_bet;
 } player_t;
 
 match_t *game_create(match_t *g) {
@@ -94,8 +92,6 @@ player_t *player_cards_initialize(player_t *p) {
         x[i].pot = 0;
         x[i].state = 1;
         x[i].my_own_bets = 0;
-        x[i].how_many_times = 0;
-        x[i].all_in_bet = 0;
     }
     return x;
 }
@@ -399,69 +395,6 @@ void victory_lies_ahead(player_t *player, match_t *game) {
     even_checker(player, game, i_win); /*TODO BISONA PARTIRE DAL CASO LIMITE DI SPLITPOT TRA GENTE IN ALL IN ALTRIMENTI NON NE ESCI*/
 }
 
-int in_out_player(player_t *player) {
-    int i, count = 0;
-    for (i = 0; i < playernum; i++) {
-        if (player[i].in_out == 1) {
-            ++count;
-        }
-    }
-    return count;
-}
-
-void can_they_afford_it(player_t *player, match_t *game) {
-    int i;
-    for (i = 0; i < playernum; i++) {
-        if (i == turn) {
-        } else if (player[i].in_out == 1) {
-            if (game->current_target <= player[i].stack + player[i].last_bet) {
-                player[i].pot += (game->current_target - player[turn].last_bet);
-            } else if (player[i].how_many_times){
-                --player[i].how_many_times; /*TODO FORSE SARA DA FARE MENO 2*/
-                player[i].pot += player[i].all_in_bet;
-                if (player[i].how_many_times == 0) {
-                    player[i].state = 3;
-                }
-            } else if (!player[i].how_many_times && player[i].state < 3) {
-                player[i].how_many_times = in_out_player(player) - 1;
-                player[i].all_in_bet = player[i].stack + player[i].last_bet; /*QUI*/
-                player[i].pot += player[i].all_in_bet;
-            }
-        }
-    }
-}
-
-void can_i_afford_it(player_t *player, match_t *game) {
-    if (game->current_target - player[turn].last_bet >= player[turn].stack) {
-        printf("\n SONO NEL RAMO NEGATIVO");
-        player[turn].state = ALL_IN;
-        player[turn].all_in_bet = player[turn].stack + player[turn].last_bet; /*QUI*/
-        player[turn].pot += player[turn].stack;
-        game->pot += player[turn].stack;
-        player[turn].my_own_bets += player[turn].stack;
-        can_they_afford_it(player, game);
-        player[turn].last_bet += player[turn].all_in_bet;
-        player[turn].stack = 0;
-    } else {
-        printf("\n SONO NEL RAMO POSITIVO");
-        player[turn].stack -= (game->current_target - player[turn].last_bet);
-        player[turn].pot += (game->current_target - player[turn].last_bet);
-        player[turn].my_own_bets += (game->current_target - player[turn].last_bet);
-        game->pot += (game->current_target - player[turn].last_bet);
-        can_they_afford_it(player, game);
-        player[turn].last_bet = game->current_target;
-    }
-}
-
-void blind(player_t *player, match_t *game) {
-    game->current_target = small_blind;
-    can_i_afford_it(player, game);
-    turn_update(player);
-    game->current_target = big_blind;
-    can_i_afford_it(player, game);
-    turn_update(player);
-}
-
 void clear_all(player_t *player, match_t *game) {
     int i;
     for (i = 0; i < playernum; i++) {
@@ -470,8 +403,6 @@ void clear_all(player_t *player, match_t *game) {
         player[i].last_bet = 0;
         player[i].pot = 0;
         player[i].state = 1;
-        player[i].all_in_bet = 0;
-        player[i].how_many_times = 0;
         player[i].my_own_bets = 0;
         game->current_target = 0;
         game->pot = 0;
@@ -483,6 +414,21 @@ void card_print(player_t *player) {
     printf("\n");
     for (i = 0; i < 2; i++) {
         printf("%d%c ", player[turn].cards[i].valore, player[turn].cards[i].seme);
+    }
+}
+
+void the_bet(player_t *player, match_t *game) {
+    if (player[turn].stack + player[turn].last_bet > game->current_target) {
+        game->pot += (game->current_target - player[turn].last_bet);
+        player[turn].stack -= (game->current_target - player[turn].last_bet);
+        player[turn].my_own_bets += (game->current_target - player[turn].last_bet);
+        player[turn].last_bet = game->current_target;
+    } else {
+        game->pot += player[turn].stack;
+        player[turn].last_bet += player[turn].stack;
+        player[turn].my_own_bets += player[turn].stack;
+        player[turn].stack = 0;
+        player[turn].state = ALL_IN;
     }
 }
 
@@ -507,9 +453,9 @@ int place_bet(player_t *player, match_t *game) {
             game->current_target *= bet;
         }
         if (game->current_target > player[turn].stack + player[turn].last_bet) {
-            game->current_target = player[turn].stack;
+            game->current_target = player[turn].stack + player[turn].last_bet;
         }
-        can_i_afford_it(player, game);
+        the_bet(player, game);
         talkers_check(player);
         if (player[turn].state == 1) /*scala un parlante solo se chi ha appena giocato potrebbe ancora parlare*/
             --talkers;
@@ -527,13 +473,12 @@ int evaluate_option(int option, player_t *player, match_t *game) {
             return place_bet(player, game);
         }
         case 2: { /*CALL CHECK*/
-            can_i_afford_it(player, game);
+            the_bet(player, game);
             --talkers;
             return 1;
         }
         case 3: {
             player[turn].in_out = 0;
-            player[turn].last_bet = 0;
             --in_hand_player;
             --talkers;
             return 1;
@@ -554,7 +499,7 @@ void print_check(player_t *player, match_t *game) {
     printf("\n");
     for (i = 0; i < playernum; i++) {
         if (player[i].in_out == 1)
-            printf("\nSTACK PLAYER %d %s: %d. My_pot: %d. My_own_bet: %d, HMT: %d ", player[i].player, player[i].name, player[i].stack, player[i].pot, player[i].my_own_bets, player[i].how_many_times);
+            printf("\nSTACK PLAYER %d %s: %d. My_pot: %d. My_own_bet: %d ", player[i].player, player[i].name, player[i].stack, player[i].pot, player[i].my_own_bets);
     }
     printf("\nPOT: %d ", game->pot);
 }
@@ -562,10 +507,10 @@ void print_check(player_t *player, match_t *game) {
 void heads_up_blind(player_t *player, match_t *game) {
     turn_update(player);
     game->current_target = small_blind;
-    can_i_afford_it(player, game);
+    the_bet(player, game);
     turn_update(player);
     game->current_target = big_blind;
-    can_i_afford_it(player, game);
+    the_bet(player, game);
     turn_update(player);
 }
 
@@ -576,6 +521,28 @@ void increase_blind() {
         if (small_blind >= 500) {
             small_blind = 500;
             big_blind = 1000;
+        }
+    }
+}
+
+void blind(player_t *player, match_t *game) {
+    game->current_target = small_blind;
+    the_bet(player, game);
+    turn_update(player);
+    game->current_target = big_blind;
+    the_bet(player, game);
+    turn_update(player);
+}
+
+void side_pot_calculator(player_t *player, match_t *game) {
+    int i, j;
+    for (i = 0; i < playernum; i++) {
+        if (player[i].in_out == 1) {
+            for (j = 0; j < playernum; j++) {
+                if (player[j].last_bet < player[i].last_bet) {
+                    player[i].pot += player[j].last_bet;
+                } else player[i].pot += player[i].last_bet;
+            }
         }
     }
 }
@@ -650,6 +617,7 @@ int main() {
             }
             else if (!talkers) {
                 game->current_target = 0;
+                side_pot_calculator(player, game);
                 reset_last_bet(player);
                 talkers_check(player);
                 if (state_of_hand == 0) {
@@ -688,6 +656,7 @@ int main() {
         victory_lies_ahead(player, game); /* se c'è solo un player o se siamo allo showdown accade questo sempre */
         player = elimination(player);
         clear_all(player, game);
+        talkers_check(player);
         dealer_index = (dealer_index + 1) % playernum;
     }
     printf("\nPLAYER %d %s WINS THE GAME!!!", player[0].player, player[0].name);
