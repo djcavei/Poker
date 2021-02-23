@@ -621,6 +621,8 @@ int main() {
     int *array;
     /*int winner;*/
     playernum = 4;
+    printf("How many players?: ");
+    scanf("%d", &playernum);
     STACK = 10000;
     talkers = playernum;
     array = array_init(array);
@@ -634,7 +636,7 @@ int main() {
     big_blind = 2 * small_blind;
     number_of_hands = 0;
     for (i = 0; i < playernum; i++) { /*inserimento nomi giocatori */
-        printf("\nInserisci nome player %d: ", i + 1);
+        printf("\nInsert player %d name: ", i + 1);
         scanf("%s", player[i].name);
         getchar();
     }
@@ -649,19 +651,19 @@ int main() {
         while (state_of_hand <= 5) {
             print_check(player, game); /*print di controllo dei player e stack */
             if (in_hand_player == 1) { /*se c'è un solo player mette lo stato a 6 evita gli altri branch e riparte daccapo clearando tutto*/
-                printf("\nVITTORIA GIOCATORE %d %s", player[turn].player, player[turn].name);
+                printf("\nPlayer %d %s wins the pot", player[turn].player, player[turn].name);
                 side_pot_calculator(player, game);
                 state_of_hand = 6;
             }
             else if (talkers && player[turn].in_out && player[turn].state == 1) { /*entra se ci sono parlanti e il selezionato è in game*/
                 printf("\nPOT: %d", game->pot);
-                printf("\n\nTURNO GIOCATORE %d %s: ", player[turn].player, player[turn].name);
+                printf("\n\nTurn Player %d %s: ", player[turn].player, player[turn].name);
                 printf("\nStack: %d", player[turn].stack);
-                printf("\n%d fiches PER CHIAMARE", game->current_target - player[turn].last_bet);
+                printf("\n%d chips to call", game->current_target - player[turn].last_bet);
                 card_print(player);
                 if (player[turn].stack <= game->current_target - player[turn].last_bet && player[turn].state == 1) { /*SE NECESSITA DI ALL'IN PER CALLARE E SE QUEL SIGNORE NON HA GIA FATTO ALLESSINEN*/
                     char x = 'x';
-                    printf("All-in to call: Y/N");
+                    printf("\nAll-in to call: Y/N");
                     scanf(" %c", &x);
                     if (x == 'y' || x == 'Y') {
                         evaluate_option(2, player, game);
@@ -704,7 +706,7 @@ int main() {
                     river_print(deck, river_index);
                     for (i = 0; i < playernum; i++) {
                         if (player[i].in_out == 1) {
-                            printf("\nPUNTEGGIO %d%c, %d%c  score is: %.5f", player[i].cards[0].valore,
+                            printf("\nScore %d%c, %d%c  score is: %.5f", player[i].cards[0].valore,
                                    player[i].cards[0].seme,
                                    player[i].cards[1].valore, player[i].cards[1].seme, player[i].win);
                         }
