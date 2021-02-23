@@ -728,5 +728,6 @@ int main() {
         dealer_index = (dealer_index + 1) % playernum;
     }
     printf("\nPLAYER %d %s WINS THE GAME!!!", player[0].player, player[0].name);
+    while (!kbhit());
     return 0;
 }
