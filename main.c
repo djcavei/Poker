@@ -54,6 +54,7 @@ typedef struct player {
     int last_bet;
     int state;
     int my_own_bets;
+    int side_pot;
 } player_t;
 
 match_t *game_create(match_t *g) {
@@ -92,6 +93,7 @@ player_t *player_cards_initialize(player_t *p) {
         x[i].pot = 0;
         x[i].state = 1;
         x[i].my_own_bets = 0;
+        x[i].side_pot = 0;
     }
     return x;
 }
@@ -191,7 +193,7 @@ void talkers_check(player_t *player) {
     }
 }
 
-double flush_check(int *fourteen_card_array, card_t *deck, player_t *player, int index, int flag, int *array_index) {
+double flush_check(int *fourteen_card_array, card_t *deck, player_t *player, int index, int flag, int *array_index) { /*TODO KICKER*/
     int i, j, c_cnt = 0, q_cnt = 0, f_cnt = 0, p_cnt = 0, max_count = 0, count = 0;
     char check = 'x';
     card_t *temp_card;
@@ -273,7 +275,7 @@ double flush_check(int *fourteen_card_array, card_t *deck, player_t *player, int
 }
 
 
-double point(int *fourteen_card_array, player_t *player, card_t *deck, int *array_index) { /*TODO I KICKER INFERIORI AL PRIMO*/
+double point(int *fourteen_card_array, player_t *player, card_t *deck, int *array_index) {
     int i, count = 0, tris_check = 0, pair_check = 0, double_pair_check = 0;
     double high_card = 0.0, point = 0.0, kicker_2 = 0.0, kicker_3 = 0.0, kicker_4 = 0.0, kicker_5 = 0.0;
     for (i = 0; i < 14; i++) {
@@ -361,38 +363,93 @@ void check_score(player_t *player, card_t *deck, int *array_index) {
     }
 }
 
-void even_checker(player_t *player, match_t *game, int winner_index) {   /*TODO DA DEFINIRE IL CASO DI PARITA MA C'E UN ALTRO IN GIOCO*/
-    int i, even_check = 0;
-    for (i = 0; i < playernum; i++) {
-        if (player[i].in_out == 1) {
-            if (i == winner_index) {
-            } else {
-                if (player[i].win == player[winner_index].win) {
-                    player[i].stack += player[i].my_own_bets;
-                    ++even_check;
-                    printf("\nSPLIT POT player %d %s", player[i].player, player[i].name);
-                }
+void copy_winner(player_t *winners, int count, player_t *player) {
+    int i, j;
+    for (i = 0; i < count; i++) {
+        for (j = 0; j < playernum; j++) {
+            if (winners[i].player == player[j].player) {
+                player[j] = winners[i];
             }
         }
-    }
-    if (!even_check) {
-        player[winner_index].stack += player[winner_index].pot; /*TODO QUI METTI IL CONTROLLO VITTORIA ALLIN*/
-        printf("\n\nPlayer %d %s wins the pot", player[winner_index].player, player[winner_index].name);
     }
 }
 
-void victory_lies_ahead(player_t *player, match_t *game) {
-    int i, i_win = 0;
-    double max = 0;
-    for (i = 0; i < playernum; i++) {
-        if (player[i].in_out == 1) {
-            if (player[i].win >= max) {
-                max = player[i].win;
-                i_win = i;
+
+void winner_print(player_t *winners, int count, player_t *player) {
+    int i;
+    for (i = 0; i < count; i++) {
+        printf("\nWinner player %d: POT: %d", winners[i].player, winners[i].side_pot);
+        winners[i].in_out = 0;
+        winners[i].stack += winners[i].side_pot;
+    }
+    copy_winner(winners, count, player);
+    free(winners);
+}
+
+void payment(player_t *winners, int count, player_t *player) {
+    int i, j;
+    for (i = 0; i < count - 1; i++) {
+        winners[i].pot -= winners[i + 1].pot;
+    }
+    for (j = count - 1; j >= 0; j--) {
+        if (winners[j].pot) {
+            for (i = j; i >= 0; i--) {
+                winners[i].side_pot += (winners[j].pot / (i + 1)) + ((winners[j].pot / (i + 1)) % 2);
+                winners[j].pot -= (winners[j].pot / (i + 1)) + ((winners[j].pot / (i + 1)) % 2);
             }
         }
     }
-    even_checker(player, game, i_win); /*TODO BISONA PARTIRE DAL CASO LIMITE DI SPLITPOT TRA GENTE IN ALL IN ALTRIMENTI NON NE ESCI*/
+    winner_print(winners, count, player);
+}
+
+void low_pots(player_t *player, int decreasing_value_of_pot) {
+    int i;
+    for (i = 0; i < playernum; i++) {
+        if (player[i].pot <= decreasing_value_of_pot) {
+            player[i].pot = 0;
+        } else {
+            player[i].pot -= decreasing_value_of_pot;
+        }
+    }
+}
+
+void winner_sorting(player_t *winners, int even_count, match_t *game, player_t *player) { /*mette in ordine decrescente i winners in base al loro mypot*/
+    int i, j, max , index;
+    player_t temp;
+    for (i = 0; i < even_count; i++) {
+        max = 0;
+        for (j = 0; i + j < even_count; j++) {
+            if (winners[i + j].pot > max) {
+                max = winners[i + j].pot;
+                index = i + j;
+            }
+        }
+        temp = winners[i];
+        winners[i] = winners[index];
+        winners[index] = temp;
+    }
+    game->pot -= winners[0].pot;
+    low_pots(player, winners[0].pot);
+    payment(winners, even_count, player);
+}
+
+void victory_lies_ahead(player_t *player, match_t *game) {
+    int i, even_count = 1;
+    double max = 0;
+    player_t *winners = NULL;
+    for (i = 0; i < playernum; i++) {
+        if (player[i].in_out && player[i].win > max) {
+            free(winners);
+            max = player[i].win;
+            even_count = 1;
+            winners = (player_t*)malloc(even_count * sizeof(player_t));
+            winners[0] = player[i];
+        } else if (player[i].in_out && player[i].win == max) {
+            realloc(winners, ++even_count * sizeof(player_t));
+            winners[even_count - 1] = player[i];
+        }
+    }
+    winner_sorting(winners, even_count, game, player);
 }
 
 void clear_all(player_t *player, match_t *game) {
@@ -404,6 +461,7 @@ void clear_all(player_t *player, match_t *game) {
         player[i].pot = 0;
         player[i].state = 1;
         player[i].my_own_bets = 0;
+        player[i].side_pot = 0;
         game->current_target = 0;
         game->pot = 0;
     }
@@ -555,12 +613,12 @@ int main() {
     match_t *game;
     int option;
     int i;
-    int *array; /*TODO ARRAY DELLE CARTE IN GIOCO (2*PLAYERNUM+5)*/
+    int *array;
     /*int winner;*/
     playernum = 4;
     STACK = 10000;
     talkers = playernum;
-    array = array_init(array); /*TODO RICORDA FREE*/
+    array = array_init(array);
     player = player_cards_initialize(player);
     deck = create_deck(deck);
     game = game_create(game);
@@ -587,6 +645,7 @@ int main() {
             print_check(player, game); /*print di controllo dei player e stack */
             if (in_hand_player == 1) { /*se c'è un solo player mette lo stato a 6 evita gli altri branch e riparte daccapo clearando tutto*/
                 printf("\nVITTORIA GIOCATORE %d %s", player[turn].player, player[turn].name);
+                side_pot_calculator(player, game);
                 state_of_hand = 6;
             }
             else if (talkers && player[turn].in_out && player[turn].state == 1) { /*entra se ci sono parlanti e il selezionato è in game*/
@@ -640,7 +699,7 @@ int main() {
                     river_print(deck, river_index);
                     for (i = 0; i < playernum; i++) {
                         if (player[i].in_out == 1) {
-                            printf("\nPUNTEGGIO %d%c, %d%c  score is: %.5f", player[i].cards[0].valore, /*TODO METTI UN %S PER RETURNARE IL PUNTO IN LETTERE */
+                            printf("\nPUNTEGGIO %d%c, %d%c  score is: %.5f", player[i].cards[0].valore,
                                    player[i].cards[0].seme,
                                    player[i].cards[1].valore, player[i].cards[1].seme, player[i].win);
                         }
@@ -653,7 +712,9 @@ int main() {
                 turn_update(player);
             }
         }
-        victory_lies_ahead(player, game); /* se c'è solo un player o se siamo allo showdown accade questo sempre */
+        while (game->pot > 0) {
+            victory_lies_ahead(player, game); /* se c'è solo un player o se siamo allo showdown accade questo sempre */
+        }
         player = elimination(player);
         clear_all(player, game);
         talkers_check(player);
