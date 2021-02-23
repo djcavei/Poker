@@ -435,7 +435,7 @@ void winner_sorting(player_t *winners, int even_count, match_t *game, player_t *
 
 void victory_lies_ahead(player_t *player, match_t *game) {
     int i, even_count = 1;
-    double max = 0;
+    double max = -1;
     player_t *winners = NULL;
     for (i = 0; i < playernum; i++) {
         if (player[i].in_out && player[i].win > max) {
