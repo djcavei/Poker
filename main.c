@@ -195,6 +195,7 @@ void talkers_check(player_t *player) {
 
 double flush_check(int *fourteen_card_array, card_t *deck, player_t *player, int index, int flag, int *array_index) { /*TODO KICKER*/
     int i, j, c_cnt = 0, q_cnt = 0, f_cnt = 0, p_cnt = 0, max_count = 0, count = 0;
+    double kicker_2 = 0.0, kicker_3 = 0.0, kicker_4 = 0.0, kicker_5 = 0.0;
     char check = 'x';
     card_t *temp_card;
     temp_card = (card_t*)malloc((2+state_of_hand) * sizeof(card_t));
@@ -237,13 +238,17 @@ double flush_check(int *fourteen_card_array, card_t *deck, player_t *player, int
     if (check != 'x') {
         for (i = 0; i < (2 + state_of_hand); i++) {
             if (temp_card[i].seme == check && temp_card[i].valore > max_count) {
+                kicker_5 = kicker_4 / 10.00;
+                kicker_4 = kicker_3 / 10.00;
+                kicker_3 = kicker_2 / 10.00;
+                kicker_2 = (double)max_count / 10.00;
                 max_count = temp_card[i].valore;
             }
         }
         if (!flag) {
             free(temp_card);
             printf("FLUSH  ");
-            return FLUSH + max_count;
+            return FLUSH + max_count + kicker_2 + kicker_3 + kicker_4 + kicker_5;
         } else {
             int royal_array[14] = {0};
             for (i = 0; i < 2 + state_of_hand; i++) {
